@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"/><title>Profile</title><link rel="stylesheet" href="styles.css" /></head>
+<body>
+  <header><nav><a href="index.html">Home</a><a id="nav-logout" style="display:none" onclick="doSignOut()">Logout</a></nav></header>
+  <main class="container">
+    <div id="global-message"></div>
+    <h1>Profile</h1>
+    <div id="profile-area">Loading…</div>
+  </main>
+
+  <script type="module">
+    import { auth, db } from "./firebase.js";
+    import { getDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { showMessage } from "./app.js";
+
+    async function render() {
+      const p = document.getElementById("profile-area");
+      auth.onAuthStateChanged(async user => {
+        if (!user) { p.innerHTML = '<p>Please <a href="login.html">login</a>.</p>'; return; }
+        try {
+          const snap = await getDoc(doc(db,"users",user.uid));
+          const d = snap.exists() ? snap.data() : {};
+          p.innerHTML = `<p><strong>Name:</strong> ${user.displayName||"-"}</p>
+            <p><strong>Email:</strong> ${user.email}</p>
+            <p><strong>Role:</strong> ${d.role||"student"}</p>
+            <p><strong>Approved:</strong> ${d.approved? "Yes":"No"}</p>`;
+        } catch (e) { p.innerHTML = "<p>Failed to load profile.</p>"; console.error(e); }
+      });
+    }
+    render();
+  </script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

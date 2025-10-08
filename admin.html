@@ -1,0 +1,94 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"/><title>Admin</title><link rel="stylesheet" href="styles.css" /></head>
+<body>
+  <header><nav><a href="index.html">Home</a><a id="nav-logout" style="display:none" onclick="doSignOut()">Logout</a></nav></header>
+  <main class="container">
+    <div id="global-message"></div>
+    <h1>Admin Dashboard</h1>
+
+    <section class="card">
+      <h3>Add Teacher</h3>
+      <form id="teacher-form">
+        <input id="tname" placeholder="Full name" required />
+        <input id="dept" placeholder="Department" />
+        <input id="subjects" placeholder="Subjects (comma-separated)" />
+        <textarea id="tbio" placeholder="Bio"></textarea>
+        <button type="submit">Add Teacher</button>
+      </form>
+    </section>
+
+    <section class="card" style="margin-top:12px">
+      <h3>Pending Students</h3>
+      <table class="table" id="pending-table">
+        <thead><tr><th>Name</th><th>Email</th><th>Action</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script type="module">
+    import { auth, db } from "./firebase.js";
+    import { collection, addDoc, getDocs, query, where, doc, updateDoc, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { currentUser, currentRole, showMessage, logAction } from "./app.js";
+
+    // add teacher
+    document.getElementById("teacher-form").addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      const name = e.target.tname.value.trim();
+      const dept = e.target.dept.value.trim();
+      const subjects = e.target.subjects.value.split(",").map(s=>s.trim()).filter(Boolean);
+      const bio = e.target.tbio.value.trim();
+      try {
+        await addDoc(collection(db, "teachers"), { name, department: dept, subjects, bio, createdAt: new Date() });
+        showMessage("Teacher added", false);
+        await logAction("add_teacher", name);
+        e.target.reset();
+      } catch (err) {
+        showMessage(err.message, true);
+      }
+    });
+
+    // load pending students
+    async function loadPending() {
+      const tbody = document.querySelector("#pending-table tbody");
+      tbody.innerHTML = "<tr><td colspan='3'>Loading…</td></tr>";
+      try {
+        const q = query(collection(db, "users"), orderBy("createdAt","asc"));
+        const snap = await getDocs(q);
+        const pending = snap.docs.map(d => ({ id:d.id, ...d.data() })).filter(u => u.role === "student" && !u.approved);
+        if (!pending.length) { tbody.innerHTML = "<tr><td colspan='3'>No pending students.</td></tr>"; return; }
+        tbody.innerHTML = pending.map(u => `
+          <tr>
+            <td>${u.name||"-"}</td>
+            <td>${u.email||"-"}</td>
+            <td><button class="approve" data-uid="${u.id}">Approve</button></td>
+          </tr>
+        `).join("");
+        document.querySelectorAll(".approve").forEach(b=>b.addEventListener("click", async ()=>{
+          const uid = b.dataset.uid;
+          try {
+            await updateDoc(doc(db,"users",uid), { approved: true });
+            showMessage("Approved", false);
+            await logAction("approve_student", uid);
+            loadPending();
+          } catch (err) { showMessage(err.message, true); }
+        }));
+      } catch (e) { tbody.innerHTML = "<tr><td colspan='3'>Failed to load.</td></tr>"; console.error(e); }
+    }
+    loadPending();
+
+    // ensure admin access: simple check
+    (async ()=> {
+      // small delay to ensure app.js has loaded auth state
+      await new Promise(r=>setTimeout(r, 400));
+      if (!currentUser || currentRole !== "admin") {
+        showMessage("Access denied - admin only", true);
+        setTimeout(()=> window.location.href = "index.html", 1000);
+      }
+    })();
+  </script>
+  <script type="module" src="app.js"></script>
+  <script type="module" src="admin.js"></script>
+</body>
+</html>

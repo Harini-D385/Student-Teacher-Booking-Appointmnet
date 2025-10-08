@@ -1,0 +1,118 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"/><title>Student Dashboard</title><link rel="stylesheet" href="styles.css" /></head>
+<body>
+  <header><nav><a href="index.html">Home</a><a id="nav-logout" style="display:none" onclick="doSignOut()">Logout</a></nav></header>
+  <main class="container">
+    <div id="global-message"></div>
+    <h1>Book Appointment</h1>
+
+    <section class="card">
+      <h3 id="teacher-title">Teacher</h3>
+      <form id="book-form">
+        <input id="teacherId" type="hidden" />
+        <label>Start time</label>
+        <input id="start" type="datetime-local" required />
+        <label>End time</label>
+        <input id="end" type="datetime-local" required />
+        <textarea id="reason" placeholder="Reason/notes"></textarea>
+        <button type="submit">Request Appointment</button>
+      </form>
+    </section>
+
+    <section style="margin-top:12px" class="card">
+      <h3>Your Appointments</h3>
+      <div id="my-appts">Loading…</div>
+    </section>
+  </main>
+
+  <script type="module">
+    import { auth, db } from "./firebase.js";
+    import { addDoc, collection, query, where, getDocs, serverTimestamp, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { showMessage, logAction } from "./app.js";
+
+    // pre-fill teacher from querystring
+    const params = new URLSearchParams(location.search);
+    const teacherId = params.get("teacherId");
+    const teacherName = params.get("teacherName");
+    if (teacherId && teacherName) {
+      document.getElementById("teacherId").value = teacherId;
+      document.getElementById("teacher-title").textContent = `Booking: ${decodeURIComponent(teacherName)}`;
+    }
+
+    // load student's appointments realtime
+    function listenMyAppointments() {
+      auth.onAuthStateChanged(user => {
+        if (!user) {
+          document.getElementById("my-appts").innerHTML = "<p>Please login to view appointments.</p>";
+          return;
+        }
+        const q = query(collection(db,"appointments"), where("studentId","==", user.uid), orderBy("startTime","desc"));
+        onSnapshot(q, snap => {
+          if (snap.empty) { document.getElementById("my-appts").innerHTML = "<p>No appointments.</p>"; return; }
+          document.getElementById("my-appts").innerHTML = snap.docs.map(d=>{
+            const a = d.data();
+            return `<div class="card"><strong>${a.teacherName}</strong><div>${new Date(a.startTime.seconds*1000).toLocaleString()} - ${a.status}</div></div>`;
+          }).join("");
+        });
+      });
+    }
+    listenMyAppointments();
+
+    // helper: convert input to Firestore Timestamp
+    function toTimestampLocal(val) {
+      const d = new Date(val);
+      return { seconds: Math.floor(d.getTime()/1000), nanoseconds: 0 };
+    }
+
+    // booking: check conflicts then create
+    document.getElementById("book-form").addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      const tid = e.target.teacherId.value;
+      const sVal = e.target.start.value;
+      const eVal = e.target.end.value;
+      const reason = e.target.reason.value.trim();
+      if (!tid || !sVal || !eVal) { showMessage("Fill all fields", true); return; }
+      const sDate = new Date(sVal);
+      const eDate = new Date(eVal);
+      if (sDate >= eDate) { showMessage("End must be after start", true); return; }
+      if (!auth.currentUser) { showMessage("Login to book", true); setTimeout(()=> location.href="login.html",800); return; }
+
+      try {
+        // check conflict: any appointment for teacher overlapping with requested time (pending/approved)
+        const q = query(collection(db,"appointments"), where("teacherId","==", tid));
+        const snap = await getDocs(q);
+        const conflict = snap.docs.some(d=>{
+          const a = d.data();
+          if (!a.startTime || !a.endTime) return false;
+          const aStart = a.startTime.seconds * 1000;
+          const aEnd = a.endTime.seconds * 1000;
+          return (aStart < eDate.getTime()) && (aEnd > sDate.getTime()) && (a.status === "pending" || a.status === "approved");
+        });
+        if (conflict) { showMessage("Time conflicts with existing appointment", true); return; }
+
+        // create appointment
+        await addDoc(collection(db,"appointments"), {
+          studentId: auth.currentUser.uid,
+          studentName: auth.currentUser.displayName || auth.currentUser.email,
+          teacherId: tid,
+          teacherName: decodeURIComponent(teacherName || ""),
+          startTime: toTimestampLocal(sVal),
+          endTime: toTimestampLocal(eVal),
+          reason,
+          status: "pending",
+          createdAt: serverTimestamp()
+        });
+        await logAction("book_appointment", `teacher:${tid}`);
+        showMessage("Appointment requested", false);
+        e.target.reset();
+      } catch (err) {
+        console.error(err);
+        showMessage(err.message, true);
+      }
+    });
+  </script>
+  <script type="module" src="app.js"></script>
+  <script type="module" src="student.js"></script>
+</body>
+</html>

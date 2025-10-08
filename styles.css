@@ -1,0 +1,17 @@
+
+:root{--accent:#2563eb;--muted:#6b7280}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,Arial;background:#f4f6f8;color:#111}
+header{background:#111;padding:10px;color:#fff}
+nav a, nav button{color:#fff;margin-right:12px;text-decoration:none}
+.container{max-width:980px;margin:24px auto;background:#fff;padding:18px;border-radius:8px;box-shadow:0 8px 30px rgba(2,6,23,0.08)}
+h1{margin-top:0}
+input,textarea,select{width:100%;padding:8px;margin:6px 0;border:1px solid #e6e9ef;border-radius:6px}
+button, .btn{background:var(--accent);color:#fff;border:none;padding:8px 12px;border-radius:6px;cursor:pointer}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.card{border:1px solid #eef2f6;padding:12px;border-radius:8px;background:#fff}
+.small{font-size:0.9rem;color:var(--muted)}
+#global-message{min-height:20px;margin-bottom:8px}
+.table{width:100%;border-collapse:collapse}
+.table th,.table td{border:1px solid #eef2f6;padding:8px;text-align:left}
+.badge{background:#e6f0ff;color:#0b4db3;padding:4px 8px;border-radius:12px;font-size:0.85rem}

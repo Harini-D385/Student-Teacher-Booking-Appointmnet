@@ -1,0 +1,40 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"/><title>Sign Up</title><link rel="stylesheet" href="styles.css" /></head>
+<body>
+  <header><nav><a href="index.html">Home</a></nav></header>
+  <main class="container">
+    <div id="global-message"></div>
+    <h1>Sign Up</h1>
+    <form id="signup-form">
+      <input id="name" placeholder="Full name" required />
+      <input id="email" type="email" placeholder="Email" required />
+      <input id="password" type="password" placeholder="Password (6+)" minlength="6" required />
+      <button type="submit">Create account</button>
+    </form>
+    <p class="small">After signup, admin must approve student accounts before booking.</p>
+  </main>
+
+  <script type="module">
+    import { auth } from "./firebase.js";
+    import { createUserWithEmailAndPassword, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { showMessage, logAction } from "./app.js";
+
+    document.getElementById("signup-form").addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      const name = e.target.name.value.trim();
+      const email = e.target.email.value.trim();
+      const pass = e.target.password.value;
+      try {
+        const cred = await createUserWithEmailAndPassword(auth, email, pass);
+        await updateProfile(cred.user, { displayName: name });
+        await logAction("signup", `uid:${cred.user.uid}`);
+        showMessage("Account created. Wait for admin approval.", false);
+        setTimeout(()=> window.location.href = "index.html", 900);
+      } catch (err) {
+        showMessage(err.message, true);
+      }
+    });
+  </script>
+</body>
+</html>

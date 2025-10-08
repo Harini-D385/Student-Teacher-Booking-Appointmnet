@@ -1,0 +1,70 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Student-Teacher Booking</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <nav>
+      <a href="index.html">Home</a>
+      <a id="nav-profile" href="profile.html" style="display:none">Profile</a>
+      <a id="nav-admin" href="admin.html" style="display:none">Admin</a>
+      <a id="nav-teacher" href="teacher.html" style="display:none">Teacher</a>
+      <a id="nav-student" href="student.html" style="display:none">Student</a>
+      <a id="nav-login" href="login.html">Login</a>
+      <a id="nav-signup" href="signup.html">Signup</a>
+      <button id="nav-logout" style="display:none" onclick="doSignOut()">Logout</button>
+    </nav>
+  </header>
+
+  <main class="container">
+    <div id="global-message"></div>
+    <h1>Teachers</h1>
+    <p class="small">Browse teachers and book appointments (students only).</p>
+    <div id="teacher-list" class="grid"></div>
+  </main>
+
+  <script type="module" src="app.js"></script>
+  <script type="module">
+    import { db } from "./firebase.js";
+    import { collection, getDocs, orderBy, query } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { showMessage } from "./app.js";
+    import { currentUser, currentRole } from "./app.js";
+
+    async function loadTeachers(){
+      const list = document.getElementById("teacher-list");
+      list.innerHTML = "Loading...";
+      try {
+        const q = query(collection(db, "teachers"), orderBy("createdAt","desc"));
+        const snap = await getDocs(q);
+        const teachers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (!teachers.length) { list.innerHTML = "<p>No teachers added yet.</p>"; return; }
+        list.innerHTML = teachers.map(t => `
+          <div class="card">
+            <h3>${escapeHtml(t.name)}</h3>
+            <p class="small">${escapeHtml(t.department || "")}</p>
+            <p>${escapeHtml(t.bio || "")}</p>
+            <p class="small">Subjects: ${Array.isArray(t.subjects)?t.subjects.join(", "):escapeHtml(t.subjects||"")}</p>
+            <button class="book-btn" data-id="${t.id}" data-name="${escapeHtml(t.name)}">Book</button>
+          </div>
+        `).join("");
+        document.querySelectorAll(".book-btn").forEach(b=>{
+          b.addEventListener("click", () => {
+            const id = b.dataset.id, name = b.dataset.name;
+            // student booking flow: go to student.html?teacherId=...
+            window.location.href = `student.html?teacherId=${id}&teacherName=${encodeURIComponent(name)}`;
+          });
+        });
+      } catch (e) {
+        console.error(e);
+        showMessage("Failed to load teachers", true);
+      }
+    }
+
+    function escapeHtml(s){ return String(s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;"); }
+    loadTeachers();
+  </script>
+</body>
+</html>

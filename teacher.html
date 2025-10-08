@@ -1,0 +1,40 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"/><title>Teacher Dashboard</title><link rel="stylesheet" href="styles.css" /></head>
+<body>
+  <header><nav><a href="index.html">Home</a><a id="nav-logout" style="display:none" onclick="doSignOut()">Logout</a></nav></header>
+  <main class="container">
+    <div id="global-message"></div>
+    <h1>Your Appointments</h1>
+    <div id="appts">Loading…</div>
+  </main>
+
+  <script type="module">
+    import { auth, db } from "./firebase.js";
+    import { query, collection, where, orderBy, onSnapshot, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { showMessage, logAction } from "./app.js";
+
+    auth.onAuthStateChanged(user => {
+      if (!user) { document.getElementById("appts").innerHTML = "<p>Please login.</p>"; return; }
+      // listen for appointments where teacherId == user.uid
+      const q = query(collection(db,"appointments"), where("teacherId","==", user.uid), orderBy("startTime","desc"));
+      onSnapshot(q, snap => {
+        if (snap.empty) { document.getElementById("appts").innerHTML = "<p>No appointments.</p>"; return; }
+        document.getElementById("appts").innerHTML = snap.docs.map(d=>{
+          const a = d.data();
+          return `<div class="card"><strong>${a.studentName}</strong><div>${new Date(a.startTime.seconds*1000).toLocaleString()}</div><div>Status: ${a.status}</div>
+            <div><button class="approve" data-id="${d.id}">Approve</button> <button class="cancel" data-id="${d.id}">Cancel</button></div></div>`;
+        }).join("");
+        document.querySelectorAll(".approve").forEach(b=>b.addEventListener("click", async ()=> {
+          try { await updateDoc(doc(db,"appointments", b.dataset.id), { status: "approved" }); await logAction("approve_appt", b.dataset.id); showMessage("Approved", false); } catch (e){ showMessage(e.message,true); }
+        }));
+        document.querySelectorAll(".cancel").forEach(b=>b.addEventListener("click", async ()=> {
+          try { await updateDoc(doc(db,"appointments", b.dataset.id), { status: "cancelled" }); await logAction("cancel_appt", b.dataset.id); showMessage("Cancelled", false); } catch (e){ showMessage(e.message,true); }
+        }));
+      }, err => { document.getElementById("appts").innerHTML = "<p>Failed to load.</p>"; console.error(err); });
+    });
+  </script>
+  <script type="module" src="app.js"></script>
+  <script type="module" src="teacher.js"></script>
+</body>
+</html>
